@@ -67,3 +67,16 @@ jobs:
         run: |
           pip install checkov==3.2.334
           checkov -d . --framework bicep terraform --compact --quiet
+
+  gitlab-pipeline:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install -g gitlab-ci-local@4.77.1
+      - name: The pipeline file parses and has the jobs and gates we expect
+        run: |
+          gitlab-ci-local --list | tee jobs.txt
+          grep -E "deploy-staging +deploy-staging +manual" jobs.txt
+          grep -E "deploy-prod +deploy-prod +manual" jobs.txt
+      - name: Run the pipeline's jobs in their containers (gitlab-ci-local, not a GitLab server)
+        run: gitlab-ci-local --concurrency 2 bicep-validate terraform-check gitleaks checkov deploy-dev deploy-test
