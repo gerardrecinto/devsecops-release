@@ -19,3 +19,6 @@ line-length = 125
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/deploytriage/rules.py" = ["E501"]
