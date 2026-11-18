@@ -17,8 +17,8 @@ jobs:
           python-version: "3.12"
       - name: Bicep CLI
         run: |
-          curl -sSLo bicep https://github.com/Azure/bicep/releases/download/$BICEP_VERSION/bicep-linux-x64
-          chmod +x bicep && sudo mv bicep /usr/local/bin/bicep && bicep --version
+          curl -sSLo /tmp/bicep-bin https://github.com/Azure/bicep/releases/download/$BICEP_VERSION/bicep-linux-x64
+          chmod +x /tmp/bicep-bin && sudo mv /tmp/bicep-bin /usr/local/bin/bicep && bicep --version
       - run: pip install -e ".[dev]"
       - run: ruff check src tests
       - run: python -m pytest -q -rs
@@ -29,8 +29,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Bicep CLI
         run: |
-          curl -sSLo bicep https://github.com/Azure/bicep/releases/download/$BICEP_VERSION/bicep-linux-x64
-          chmod +x bicep && sudo mv bicep /usr/local/bin/bicep
+          curl -sSLo /tmp/bicep-bin https://github.com/Azure/bicep/releases/download/$BICEP_VERSION/bicep-linux-x64
+          chmod +x /tmp/bicep-bin && sudo mv /tmp/bicep-bin /usr/local/bin/bicep
       - name: Lint with warnings as failures
         run: |
           out=$(bicep lint bicep/main.bicep 2>&1); echo "$out"; test -z "$out"
