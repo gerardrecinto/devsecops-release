@@ -1,0 +1,69 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+env:
+  BICEP_VERSION: v0.31.34
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Bicep CLI
+        run: |
+          curl -sSLo bicep https://github.com/Azure/bicep/releases/download/$BICEP_VERSION/bicep-linux-x64
+          chmod +x bicep && sudo mv bicep /usr/local/bin/bicep && bicep --version
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests
+      - run: python -m pytest -q -rs
+
+  bicep:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bicep CLI
+        run: |
+          curl -sSLo bicep https://github.com/Azure/bicep/releases/download/$BICEP_VERSION/bicep-linux-x64
+          chmod +x bicep && sudo mv bicep /usr/local/bin/bicep
+      - name: Lint with warnings as failures
+        run: |
+          out=$(bicep lint bicep/main.bicep 2>&1); echo "$out"; test -z "$out"
+      - name: Build every environment's parameters
+        run: for p in bicep/params/*.bicepparam; do bicep build-params "$p" --stdout > /dev/null && echo "ok $p"; done
+
+  terraform:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - run: terraform fmt -check -recursive terraform
+      - name: Validate and test the module (mocked provider, no Azure)
+        working-directory: terraform/modules/vnet
+        run: |
+          terraform init -backend=false
+          terraform validate
+          terraform test
+
+  scan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secrets scan
+        run: docker run --rm -v "$PWD":/repo zricethezav/gitleaks:v8.21.2 detect --source /repo --no-banner --redact --exit-code 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Checkov on Bicep and Terraform
+        run: |
+          pip install checkov==3.2.334
+          checkov -d . --framework bicep terraform --compact --quiet

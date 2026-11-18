@@ -1,0 +1,4 @@
+Running with gitlab-runner 17.6.0
+Cloning repository...
+$ az bicep install --version v0.31.34
+ERROR: Job failed: execution took longer than 1h0m0s seconds

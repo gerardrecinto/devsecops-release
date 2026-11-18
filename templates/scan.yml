@@ -1,0 +1,28 @@
+spec:
+  inputs:
+    stage:
+      default: scan
+    checkov_dir:
+      default: "."
+---
+gitleaks:
+  stage: $[[ inputs.stage ]]
+  image:
+    name: zricethezav/gitleaks:v8.21.2
+    entrypoint: [""]
+  script:
+    - gitleaks detect --source . --no-banner --redact --exit-code 1
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+checkov:
+  stage: $[[ inputs.stage ]]
+  image:
+    name: bridgecrew/checkov:3.2.334
+    entrypoint: [""]
+  script:
+    - checkov -d $[[ inputs.checkov_dir ]] --framework bicep terraform --compact --quiet
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

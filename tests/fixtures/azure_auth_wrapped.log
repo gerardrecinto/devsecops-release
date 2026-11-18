@@ -1,0 +1,8 @@
+$ az deployment group create -g rg-lab-prod --parameters bicep/params/prod.bicepparam
+ERROR: Deployment failed. Correlation ID: 00000000-0000-0000-0000-000000000000. {
+  "code": "DeploymentFailed",
+  "message": "At least one resource deployment operation failed. Please list deployment operations for details.",
+  "details": [
+    {"code": "AuthorizationFailed", "message": "The client does not have authorization to perform action 'Microsoft.Network/virtualNetworks/write' over scope '/subscriptions/.../resourceGroups/rg-lab-prod'."}
+  ]
+}

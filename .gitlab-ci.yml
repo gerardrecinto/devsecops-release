@@ -1,0 +1,18 @@
+# Dev and test deploy by themselves on the default branch. Staging and prod wait for a person.
+stages: [validate, scan, deploy-dev, deploy-test, deploy-staging, deploy-prod]
+
+include:
+  - local: templates/bicep.yml
+    inputs: { stage: validate }
+  - local: templates/terraform.yml
+    inputs: { stage: validate, module_dir: terraform/modules/vnet }
+  - local: templates/scan.yml
+    inputs: { stage: scan }
+  - local: templates/promote.yml
+    inputs: { environment: dev, stage: deploy-dev, manual: false }
+  - local: templates/promote.yml
+    inputs: { environment: test, stage: deploy-test, manual: false }
+  - local: templates/promote.yml
+    inputs: { environment: staging, stage: deploy-staging, manual: true }
+  - local: templates/promote.yml
+    inputs: { environment: prod, stage: deploy-prod, manual: true }

@@ -1,0 +1,3 @@
+$ curl -fsS https://stlabprod.blob.core.windows.net/health
+curl: (6) Could not resolve host: stlabprod.blob.core.windows.net
+ERROR: Job failed: exit code 6

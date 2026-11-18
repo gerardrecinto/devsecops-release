@@ -1,0 +1,29 @@
+spec:
+  inputs:
+    stage:
+      default: validate
+    main_file:
+      default: bicep/main.bicep
+    params_dir:
+      default: bicep/params
+    bicep_version:
+      default: v0.31.34
+---
+bicep-validate:
+  stage: $[[ inputs.stage ]]
+  image: mcr.microsoft.com/azure-cli:2.67.0
+  script:
+    - az bicep install --version $[[ inputs.bicep_version ]]
+    - az bicep lint --file $[[ inputs.main_file ]]
+    - az bicep build --file $[[ inputs.main_file ]] --outfile arm.json
+    - |
+      for p in $[[ inputs.params_dir ]]/*.bicepparam; do
+        az bicep build-params --file "$p" --outfile /dev/null
+        echo "params ok: $p"
+      done
+  artifacts:
+    paths: [arm.json]
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

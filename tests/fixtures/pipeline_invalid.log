@@ -1,0 +1,2 @@
+Checking pipeline configuration
+This GitLab CI configuration is invalid: 'deploy-prod' job needs 'bicep-validate' job, but 'bicep-validate' is not in any previous stage

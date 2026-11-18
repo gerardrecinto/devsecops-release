@@ -1,0 +1,2 @@
+Warning  BackOff  pod/api-7c5d9  Back-off restarting failed container api in pod api-7c5d9
+Warning  Unhealthy  pod/api-7c5d9  Readiness probe failed: HTTP probe failed with statuscode: 503

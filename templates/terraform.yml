@@ -1,0 +1,22 @@
+spec:
+  inputs:
+    stage:
+      default: validate
+    module_dir:
+      description: Terraform module to check
+---
+terraform-check:
+  stage: $[[ inputs.stage ]]
+  image:
+    name: hashicorp/terraform:1.9
+    entrypoint: [""]
+  before_script:
+    - cd $[[ inputs.module_dir ]]
+  script:
+    - terraform fmt -check -recursive
+    - terraform init -backend=false -input=false
+    - terraform validate
+    - terraform test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

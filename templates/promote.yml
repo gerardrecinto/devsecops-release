@@ -1,0 +1,37 @@
+spec:
+  inputs:
+    environment:
+      options: [dev, test, staging, prod]
+    stage:
+      description: Pipeline stage that holds this environment
+    manual:
+      type: boolean
+      default: true
+    needs_job:
+      default: bicep-validate
+---
+"deploy-$[[ inputs.environment ]]":
+  stage: $[[ inputs.stage ]]
+  image: mcr.microsoft.com/azure-cli:2.67.0
+  needs: ["$[[ inputs.needs_job ]]"]
+  environment:
+    name: $[[ inputs.environment ]]
+  resource_group: $[[ inputs.environment ]]
+  variables:
+    ENV_NAME: $[[ inputs.environment ]]
+  script:
+    - az bicep install --version v0.31.34
+    - az bicep build-params --file bicep/params/$ENV_NAME.bicepparam --stdout > "params-$ENV_NAME.json"
+    - |
+      if [ -n "${AZURE_CLIENT_ID:-}" ]; then
+        az login --service-principal -u "$AZURE_CLIENT_ID" --federated-token "$ID_TOKEN" --tenant "$AZURE_TENANT_ID"
+        az deployment group what-if -g "rg-lab-$ENV_NAME" --parameters bicep/params/$ENV_NAME.bicepparam
+        az deployment group create -g "rg-lab-$ENV_NAME" --parameters bicep/params/$ENV_NAME.bicepparam
+      else
+        echo "No Azure credentials in this pipeline. Parameters for $ENV_NAME compiled, nothing deployed."
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && "$[[ inputs.manual ]]" == "true"
+      when: manual
+      allow_failure: false
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

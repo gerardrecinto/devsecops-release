@@ -1,0 +1,21 @@
+[project]
+name = "devsecops-release-lab"
+version = "0.1.0"
+description = "GitLab CI components, Bicep and Terraform modules for Azure networking, and a deploy-failure triage tool."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "pyyaml"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 125
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
