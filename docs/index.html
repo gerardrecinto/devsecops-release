@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DevSecOps Release Lab | Which layer broke the deploy?</title>
+<meta name="description" content="Reusable GitLab CI components, Bicep and Terraform modules for Azure networking, security scan gates, and a tool that points a failed deploy at the layer that broke. Checked in CI, not run on a live Azure subscription.">
+<link rel="canonical" href="https://gerardrecinto.github.io/devsecops-release-lab/">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#07090E" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F4F5F8" media="(prefers-color-scheme: light)">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Which layer broke the deploy? Paste the log.">
+<meta property="og:description" content="GitLab CI components, Azure networking in Bicep, Terraform tests, scan gates and a deploy-failure triage tool.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Ccircle cx=%278%27 cy=%278%27 r=%276%27 fill=%27%2306b6d4%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>if(!matchMedia('(prefers-reduced-motion: reduce)').matches)document.documentElement.classList.add('js')</script>
+<style>
+
+:root{--bg:#07090E;--fg:#E8EBF2;--mut:#98A0B3;--line:#1B2130;--card:#0E121B;--card2:#121826;--a:#10b981;--b:#06b6d4;--c:#8b5cf6;--bad:#f87171;--ok:#34d399;--grid:rgba(255,255,255,.035);--al1:rgba(16,185,129,.20);--al2:rgba(6,182,212,.17);--al3:rgba(139,92,246,.18);--ease:cubic-bezier(.16,1,.3,1)}
+@media(prefers-color-scheme:light){:root{--bg:#F4F5F8;--fg:#0F1420;--mut:#566074;--line:#DDE1EA;--card:#fff;--card2:#F9FAFC;--bad:#b91c1c;--ok:#047857;--grid:rgba(0,0,0,.05);--al1:rgba(16,185,129,.16);--al2:rgba(6,182,212,.14);--al3:rgba(139,92,246,.12)}}
+*{box-sizing:border-box}html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 Inter,-apple-system,system-ui,sans-serif;overflow-x:hidden}
+body:before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(to right,var(--grid) 1px,transparent 1px),linear-gradient(to bottom,var(--grid) 1px,transparent 1px);background-size:56px 56px;-webkit-mask-image:radial-gradient(ellipse at 50% 20%,#000,transparent 75%);mask-image:radial-gradient(ellipse at 50% 20%,#000,transparent 75%)}
+.aurora{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.aurora i{position:absolute;width:60vmax;height:60vmax;border-radius:50%;filter:blur(40px)}
+.aurora i:nth-child(1){top:-22vmax;left:-14vmax;background:radial-gradient(circle,var(--al1),transparent 65%);animation:da 26s ease-in-out infinite alternate}
+.aurora i:nth-child(2){top:18vh;right:-22vmax;background:radial-gradient(circle,var(--al2),transparent 65%);animation:db 32s ease-in-out infinite alternate}
+.aurora i:nth-child(3){bottom:-26vmax;left:22vw;background:radial-gradient(circle,var(--al3),transparent 65%);animation:dc 38s ease-in-out infinite alternate}
+@keyframes da{to{transform:translate3d(14vmax,10vmax,0) scale(1.15)}}@keyframes db{to{transform:translate3d(-12vmax,14vmax,0) scale(.9)}}@keyframes dc{to{transform:translate3d(10vmax,-12vmax,0) scale(1.1)}}
+.prog{position:fixed;top:0;left:0;right:0;height:2px;z-index:60;transform-origin:0 50%;transform:scaleX(0);background:linear-gradient(90deg,var(--a),var(--b),var(--c));pointer-events:none}
+header.nav{position:sticky;top:0;z-index:50;-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);background:color-mix(in srgb,var(--bg) 70%,transparent);border-bottom:1px solid var(--line)}
+.nav div{max-width:1100px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:20px}
+.brand{font:600 14px 'JetBrains Mono',monospace;color:var(--fg);text-decoration:none;display:flex;gap:8px;align-items:center}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--a);box-shadow:0 0 0 0 var(--a);animation:ping 2.4s infinite}
+@keyframes ping{70%{box-shadow:0 0 0 9px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.nav nav{margin-left:auto;display:flex;gap:18px;font-size:14px}.nav nav a{color:var(--mut);text-decoration:none;transition:color .2s}.nav nav a:hover{color:var(--fg)}
+main{position:relative;z-index:1}
+.wrap{max-width:1100px;margin:0 auto;padding:0 20px}
+section{padding:88px 0 0}
+.eyebrow{font:500 12px/1 'JetBrains Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--a);margin:0 0 14px}
+h1{font-size:clamp(38px,7.2vw,76px);line-height:1.02;letter-spacing:-.035em;font-weight:800;margin:0 0 20px}
+h2{font-size:clamp(26px,4vw,40px);line-height:1.1;letter-spacing:-.03em;font-weight:700;margin:0 0 14px}
+.grad{background:linear-gradient(100deg,var(--a),var(--b) 50%,var(--c));-webkit-background-clip:text;background-clip:text;color:transparent;background-size:200% 100%;animation:sh 8s linear infinite}
+@keyframes sh{to{background-position:-200% 0}}
+.lead{font-size:clamp(17px,2vw,20px);color:var(--mut);max-width:680px;margin:0}
+p{margin:8px 0}a{color:var(--b)}code{font:13px 'JetBrains Mono',monospace;background:var(--card2);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+.hero{padding:84px 0 0}.hero .grid{display:grid;grid-template-columns:1.05fr 1fr;gap:40px;align-items:center}
+.cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px}
+.btn{display:inline-block;border:1px solid var(--line);background:var(--card);color:var(--fg);padding:11px 18px;border-radius:12px;font-weight:600;font-size:14px;text-decoration:none;transition:transform .3s var(--ease),border-color .3s,box-shadow .3s}
+.btn:hover{transform:translateY(-2px);border-color:var(--a);box-shadow:0 8px 30px -10px var(--a)}.btn:focus-visible{outline:2px solid var(--b);outline-offset:2px}
+.btn.p{background:linear-gradient(100deg,var(--a),var(--b));color:#031210;border-color:transparent}
+.badges{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}.badges img{height:20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px}
+/* live feed */
+.feed{padding:16px;position:relative;overflow:hidden}
+.feed h3{font:500 11px/1 'JetBrains Mono',monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin:0 0 12px;display:flex;justify-content:space-between}
+.lane{position:relative;height:210px;border:1px solid var(--line);border-radius:12px;background:var(--card2);overflow:hidden}
+.gate{position:absolute;top:0;bottom:0;width:1px;background:linear-gradient(transparent,var(--b),transparent);opacity:.5}
+.gl{position:absolute;bottom:6px;font:500 10px 'JetBrains Mono',monospace;color:var(--mut);transform:translateX(-50%);white-space:nowrap}
+.ev{position:absolute;left:0;font:500 11px 'JetBrains Mono',monospace;padding:3px 7px;border-radius:7px;border:1px solid var(--line);background:var(--card);white-space:nowrap;will-change:transform,opacity}
+.ev.bad{border-color:var(--bad);color:var(--bad)}.ev.priv{border-color:#f59e0b;color:#f59e0b}
+.counters{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;font:500 12px 'JetBrains Mono',monospace}
+.counters div{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:var(--mut)}.counters b{display:block;font-size:20px;color:var(--fg)}
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:40px}
+.stat{padding:20px}.stat b{display:block;font-size:clamp(30px,4vw,44px);letter-spacing:-.03em;font-weight:800;background:linear-gradient(100deg,var(--a),var(--b));-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{color:var(--mut);font-size:14px}
+/* story */
+.story{padding:120px 0 0}.story p{font-size:clamp(26px,5vw,52px);line-height:1.12;letter-spacing:-.03em;font-weight:700;max-width:960px;margin:0}
+.story .w{color:var(--fg);transition:color .3s linear}.js .story .w{color:color-mix(in srgb,var(--fg) 22%,transparent)}.js .story .w.on{color:var(--fg)}
+/* pipeline */
+.steps{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:28px;position:relative}
+.step{padding:18px;position:relative;transition:transform .4s var(--ease),border-color .4s,box-shadow .4s}
+.step:hover{transform:translateY(-4px);border-color:var(--a);box-shadow:0 14px 40px -18px var(--a)}
+.step .n{font:600 12px 'JetBrains Mono',monospace;color:var(--a)}.step h3{margin:6px 0 6px;font-size:18px;letter-spacing:-.02em}.step p{font-size:13.5px;color:var(--mut);margin:0}
+.js .steps .step::after{content:"";position:absolute;top:50%;right:-12px;width:12px;height:2px;background:linear-gradient(90deg,var(--a),transparent);opacity:.6}.steps .step:last-child::after{display:none}
+/* demo */
+.panel{padding:22px}
+.ctl{display:flex;gap:28px;flex-wrap:wrap;margin-bottom:18px}
+.ctl label{font-size:13px;color:var(--mut);display:flex;flex-direction:column;gap:6px;min-width:240px;flex:1}
+.ctl output{color:var(--fg);font:600 14px 'JetBrains Mono',monospace}
+input[type=range]{width:100%;accent-color:var(--a)}
+.bars{display:grid;gap:7px}
+.row{display:grid;grid-template-columns:210px 1fr 130px;gap:12px;align-items:center;font-size:13px}
+.track{position:relative;height:20px;background:var(--card2);border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#334155,#475569);transition:width .5s var(--ease),background .3s;width:0}
+.fill.flag{background:linear-gradient(90deg,#b91c1c,var(--bad));box-shadow:0 0 18px -2px var(--bad)}
+.thr{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ok);transition:left .3s var(--ease)}
+.tag{font:12px 'JetBrains Mono',monospace;color:var(--mut);text-align:right}.tag.flag{color:var(--bad);font-weight:600}
+.verdict{margin-top:14px;font:500 14px 'JetBrains Mono',monospace}
+.issues{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:16px}
+.issue{padding:14px 16px;border-left:3px solid var(--bad);position:relative;animation:in .5s var(--ease)}
+.issue small{display:block;font:500 11px 'JetBrains Mono',monospace;color:var(--mut)}.issue b{font-size:14px}
+.stamp{position:absolute;right:10px;top:10px;font:700 10px 'JetBrains Mono',monospace;letter-spacing:.12em;color:var(--bad);border:2px solid var(--bad);border-radius:5px;padding:2px 6px;transform:rotate(-6deg);animation:stamp .5s var(--ease)}
+@keyframes stamp{from{opacity:0;transform:rotate(-14deg) scale(1.8)}to{opacity:1;transform:rotate(-6deg) scale(1)}}
+@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.mut{color:var(--mut)}.note{font-size:13px;color:var(--mut)}
+/* cards grid */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:24px}
+.tile{padding:20px;transition:transform .4s var(--ease),border-color .4s}.tile:hover{transform:translateY(-3px);border-color:var(--b)}
+.tile h3{margin:0 0 4px;font-size:17px;letter-spacing:-.01em}.tile .f{font:12px 'JetBrains Mono',monospace;color:var(--a)}
+.tile p{font-size:14px;color:var(--mut);margin:8px 0 0}
+.tile .gap{color:#f59e0b}
+.trade{display:grid;gap:12px;margin-top:24px}
+details.t{padding:0;overflow:hidden}details.t summary{cursor:pointer;list-style:none;padding:16px 20px;display:flex;gap:14px;align-items:baseline;font-weight:600}
+details.t summary::-webkit-details-marker{display:none}details.t summary:after{content:"+";margin-left:auto;font:500 20px 'JetBrains Mono',monospace;color:var(--a);transition:transform .3s}
+details.t[open] summary:after{transform:rotate(45deg)}details.t summary i{font:normal 500 12px 'JetBrains Mono',monospace;color:var(--mut)}
+.tb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;padding:0 20px 18px;font-size:14px;color:var(--mut)}.tb b{display:block;color:var(--fg);font:600 11px 'JetBrains Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px}
+.bug{padding:20px}.bug code{display:block;background:none;border:0;padding:0;color:var(--mut)}
+pre{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;overflow:auto;font:13px/1.6 'JetBrains Mono',monospace;margin:18px 0 0;position:relative}
+.copy{position:absolute;top:10px;right:10px;font:500 12px 'JetBrains Mono',monospace;background:var(--card2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer}
+footer{padding:80px 0 60px;color:var(--mut);font-size:14px}
+.js .reveal{opacity:0;transform:translate3d(0,38px,0) scale(.985);transition:opacity .9s var(--ease),transform .9s var(--ease);transition-delay:var(--d,0ms)}.js .reveal.in{opacity:1;transform:none}
+@media(max-width:900px){.hero .grid{grid-template-columns:1fr}.steps{grid-template-columns:1fr 1fr}.js .steps .step::after{display:none}.row{grid-template-columns:1fr;gap:3px}.tag{text-align:left}.nav nav a:nth-child(n+3){display:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}.js .reveal{opacity:1;transform:none}}
+
+
+.stack{display:grid;gap:8px;margin-top:6px}
+.layer{display:grid;grid-template-columns:130px 1fr;gap:12px;align-items:center;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card2);transition:all .5s var(--ease)}
+.layer b{font:600 12px 'JetBrains Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.layer span{font-size:13px;color:var(--mut)}
+.layer.hit{border-color:var(--bad);box-shadow:0 0 28px -8px var(--bad);transform:translateX(8px)}.layer.hit b{color:var(--bad)}.layer.hit span{color:var(--fg)}
+.layer.also{border-color:#f59e0b}.layer.also b{color:#f59e0b}
+textarea{width:100%;min-height:150px;background:var(--card2);color:var(--fg);border:1px solid var(--line);border-radius:12px;padding:12px;font:13px/1.55 'JetBrains Mono',monospace;resize:vertical}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.chip{border:1px solid var(--line);background:var(--card2);color:var(--fg);border-radius:999px;padding:6px 12px;font:500 12px 'JetBrains Mono',monospace;cursor:pointer;transition:border-color .2s,transform .2s}.chip:hover{border-color:var(--a);transform:translateY(-1px)}.chip.on{border-color:var(--a);color:var(--a)}
+.out{margin-top:14px;padding:14px 16px;border-left:3px solid var(--bad)}
+.out small{font:500 11px 'JetBrains Mono',monospace;color:var(--mut);display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.08em}
+.out p{margin:4px 0;font-size:14px}.out code{white-space:pre-wrap;word-break:break-word}
+.tri{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:900px){.tri{grid-template-columns:1fr}.layer{grid-template-columns:100px 1fr}}
+/* pipeline sketch */
+.pipe{position:relative;height:230px;border:1px solid var(--line);border-radius:12px;background:var(--card2);overflow:hidden;padding:14px}
+.envs{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;height:100%;align-items:center}
+.env{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--card);text-align:center;font:600 12px 'JetBrains Mono',monospace;transition:all .5s var(--ease);position:relative}
+.env small{display:block;font-weight:500;color:var(--mut);margin-top:4px}
+.env.done{border-color:var(--ok);color:var(--ok);box-shadow:0 0 22px -8px var(--ok)}
+.env.wait{border-color:#f59e0b;color:#f59e0b;animation:ping2 1.6s infinite}
+@keyframes ping2{50%{box-shadow:0 0 0 8px transparent;transform:translateY(-3px)}}
+.tok{position:absolute;top:50%;left:6%;width:14px;height:14px;border-radius:50%;background:linear-gradient(100deg,var(--a),var(--b));box-shadow:0 0 14px var(--b);transition:left 1s var(--ease);transform:translateY(-50%)}
+.pipe button{position:absolute;right:14px;bottom:12px}
+.mini{font:500 12px 'JetBrains Mono',monospace;padding:6px 12px;border-radius:10px;border:1px solid var(--a);background:transparent;color:var(--a);cursor:pointer}
+.mini:hover{background:var(--a);color:#031210}
+
+</style>
+</head>
+<body>
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="prog" id="prog"></div>
+<header class="nav"><div><a class="brand" href="#top"><span class="dot"></span>devsecops-release-lab</a>
+<nav><a href="#triage">Try it</a><a href="#how">Pipeline</a><a href="#parts">Parts</a><a href="#tradeoffs">Trade-offs</a><a href="https://github.com/gerardrecinto/devsecops-release-lab">GitHub</a></nav></div></header>
+<main id="top">
+<section class="hero"><div class="wrap grid">
+<div>
+<p class="eyebrow">GitLab CI &middot; Azure &middot; Bicep &middot; Terraform</p>
+<h1>Which layer broke the <span class="grad">deploy?</span></h1>
+<p class="lead">Reusable GitLab CI components, Azure networking as code, security gates, and a small tool that reads a failed deploy log and says whether the pipeline, the source, Linux, the template, Azure, the network or the app broke it.</p>
+<div class="cta"><a class="btn p" href="#triage">Paste a log</a><a class="btn" href="https://github.com/gerardrecinto/devsecops-release-lab">Source on GitHub</a></div>
+<div class="badges"><a href="https://github.com/gerardrecinto/devsecops-release-lab/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/gerardrecinto/devsecops-release-lab/actions/workflows/ci.yml/badge.svg"></a><img alt="MIT" src="https://img.shields.io/github/license/gerardrecinto/devsecops-release-lab"></div>
+</div>
+<div class="card feed reveal" aria-label="Animated sketch of a four environment pipeline">
+<h3><span>pipeline sketch</span><span>not a live GitLab</span></h3>
+<div class="pipe" id="pipe"><div class="envs">
+<div class="env" data-e="0">dev<small>automatic</small></div>
+<div class="env" data-e="1">test<small>automatic</small></div>
+<div class="env" data-e="2">staging<small>manual gate</small></div>
+<div class="env" data-e="3">prod<small>manual gate</small></div></div>
+<div class="tok" id="tok"></div><button class="mini" id="appr" type="button">Approve</button></div>
+<p class="note" style="margin:10px 0 0">Same artifact moves through four environments. Dev and test deploy by themselves on the default branch. Staging and prod wait for a person.</p>
+</div></div>
+<div class="wrap"><div class="stats">
+<div class="card stat reveal"><b data-n="19">19</b><span>tests passing, CI green</span></div>
+<div class="card stat reveal" style="--d:80ms"><b data-n="6">6</b><span>pipeline jobs ran in containers</span></div>
+<div class="card stat reveal" style="--d:160ms"><b data-n="4">4</b><span>environments, one parameter file each</span></div>
+<div class="card stat reveal" style="--d:240ms"><b data-n="0">0</b><span>Bicep lint warnings</span></div>
+</div></div></section>
+
+<section class="story"><div class="wrap"><p id="story">A deploy fails at the end of a long pipeline. The error is in a different layer than the place you are looking. This lab reads the first real error, names the layer, and tells you the one thing to check next.</p></div></section>
+
+<section id="triage"><div class="wrap">
+<p class="eyebrow reveal">Try it</p><h2 class="reveal">Paste a failed deploy log</h2>
+<p class="lead reveal">First failure wins. Azure wraps real errors inside <code>DeploymentFailed</code>, so the tool looks for the nested code. The rules run in your browser and a test checks they match the Python tool.</p>
+<div class="card panel reveal" style="margin-top:22px"><div class="tri"><div>
+<div class="chips" id="chips"></div>
+<textarea id="log" spellcheck="false" aria-label="Deploy log"></textarea>
+<p class="note" style="margin-top:8px">The sample logs are representative messages written from known formats, not captured from a real run.</p>
+</div><div>
+<div class="stack" id="stack"></div>
+<div class="card out" id="out"></div>
+</div></div></div></div></section>
+
+<section id="how"><div class="wrap">
+<p class="eyebrow reveal">The pipeline</p><h2 class="reveal">Components, composed four times</h2>
+<p class="lead reveal">Each component declares typed inputs. <code>promote.yml</code> is included once per environment and names its job from the input.</p>
+<pre class="reveal" style="margin-top:20px">include:
+  - local: templates/bicep.yml
+    inputs: { stage: validate }
+  - local: templates/terraform.yml
+    inputs: { stage: validate, module_dir: terraform/modules/vnet }
+  - local: templates/scan.yml          # gitleaks + checkov
+    inputs: { stage: scan }
+  - local: templates/promote.yml
+    inputs: { environment: staging, stage: deploy-staging, manual: true }
+  - local: templates/promote.yml
+    inputs: { environment: prod, stage: deploy-prod, manual: true }</pre>
+<p class="note reveal">Checked with <code>gitlab-ci-local</code> in CI: the file parses, staging and prod are manual, and bicep-validate, terraform-check, gitleaks, checkov, deploy-dev and deploy-test all pass in their containers. It was not run on a GitLab server.</p>
+</div></section>
+
+<section id="parts"><div class="wrap">
+<p class="eyebrow reveal">What each part shows</p><h2 class="reveal">Real, tested, and where it stops</h2>
+<div class="cards">
+<div class="card tile reveal"><h3>GitLab CI components</h3><div class="f">templates/*.yml</div><p>Typed inputs, rules, needs, artifacts, environments, resource groups, manual gates. <span class="gap">Run with gitlab-ci-local, not a GitLab server. Local include, not a catalog.</span></p></div>
+<div class="card tile reveal" style="--d:60ms"><h3>Azure networking in Bicep</h3><div class="f">bicep/</div><p>Spoke VNet, deny-all-inbound NSGs, route table to a firewall, private storage behind a private endpoint and private DNS. Lints clean, builds for four environments. <span class="gap">Never deployed.</span></p></div>
+<div class="card tile reveal" style="--d:120ms"><h3>Terraform module</h3><div class="f">terraform/modules/vnet</div><p>Validated inputs, one NSG per subnet that always ends in deny-all, <code>terraform test</code> with a mocked provider. <span class="gap">No plan against real Azure.</span></p></div>
+<div class="card tile reveal"><h3>Compliance as tests</h3><div class="f">tests/test_invariants.py</div><p>Python reads the compiled ARM: every NSG ends in deny-all-inbound, storage is private with TLS 1.2 and no shared keys.</p></div>
+<div class="card tile reveal" style="--d:60ms"><h3>Scan gates</h3><div class="f">templates/scan.yml</div><p>Gitleaks for secrets, Checkov for Bicep and Terraform. Both pass in CI. <span class="gap">No SAST or container scan in this repo; see gitops-aks-demo for Trivy.</span></p></div>
+<div class="card tile reveal" style="--d:120ms"><h3>Deploy triage</h3><div class="f">src/deploytriage</div><p>Eight rules, first failure wins, nested Azure errors preferred over wrappers. <span class="gap">Rules, not a model.</span></p></div>
+<div class="card tile reveal"><h3>GitOps</h3><div class="f">gitops-aks-demo</div><p>CI writes desired state to Git, Argo CD syncs AKS, nothing in CI runs kubectl. A separate personal project, linked not copied.</p></div>
+<div class="card tile reveal" style="--d:60ms"><h3>Not covered</h3><div class="f">honest list</div><p><span class="gap">No Azure Government or DoD work. No clearance. No Security+ or AZ-104. No production GitLab CI. No live Azure subscription.</span></p></div>
+<div class="card tile reveal" style="--d:120ms"><h3>Run it yourself</h3><div class="f">3 commands</div><p><code>pip install -e ".[dev]"</code>, <code>pytest</code>, <code>gitlab-ci-local --list</code>. Bicep tests need the bicep CLI and skip without it.</p></div>
+</div></div></section>
+
+<section id="tradeoffs"><div class="wrap">
+<p class="eyebrow reveal">Decisions and trade-offs</p><h2 class="reveal">Why this and not that</h2>
+<p class="mut reveal">All design-only: nothing here ran in production.</p>
+<div class="trade">
+<details class="card t reveal" open><summary>Components with typed inputs <i>over copied YAML</i></summary><div class="tb"><div><b>Why</b>Inputs are checked when the pipeline is created, versions are pinned, policy lives in one place.</div><div><b>Costs</b>Someone has to maintain them and a one-off change is slower.</div><div><b>Flip when</b>One project, no reuse.</div></div></details>
+<details class="card t reveal"><summary>Private endpoint <i>over a service endpoint</i></summary><div class="tb"><div><b>Why</b>A private IP inside your VNet and no public path.</div><div><b>Costs</b>Per-endpoint charge and private DNS you must get right.</div><div><b>Flip when</b>A service endpoint with a firewall rule is enough and cost matters.</div></div></details>
+<details class="card t reveal"><summary>Mocked-provider tests <i>over integration tests</i></summary><div class="tb"><div><b>Why</b>Fast, free, no credentials.</div><div><b>Costs</b>They cannot catch provider or API behaviour.</div><div><b>Flip when</b>The risk is in the real API; add a sandbox subscription run.</div></div></details>
+<details class="card t reveal"><summary>Manual gate on staging and prod <i>over fully automatic</i></summary><div class="tb"><div><b>Why</b>A person approves what reaches production.</div><div><b>Costs</b>The pipeline can sit blocked.</div><div><b>Flip when</b>Health-gated automatic rollback is trusted for that environment.</div></div></details>
+<details class="card t reveal"><summary>Rules in the triage tool <i>over a model</i></summary><div class="tb"><div><b>Why</b>Predictable and explainable.</div><div><b>Costs</b>Misses messages it has not seen.</div><div><b>Flip when</b>There are enough labelled logs to measure a classifier against the rules.</div></div></details>
+<details class="card t reveal"><summary>Checkov and Gitleaks as pipeline gates <i>over a review checklist</i></summary><div class="tb"><div><b>Why</b>Every merge request gets the same checks.</div><div><b>Costs</b>False positives need an exception path.</div><div><b>Flip when</b>A finding class is too noisy to block on.</div></div></details>
+</div></div></section>
+
+<section><div class="wrap">
+<p class="eyebrow reveal">Run it</p><h2 class="reveal">Under a minute</h2>
+<p class="mut reveal">Python 3.10 or newer. Node and Docker only for the gitlab-ci-local line.</p>
+<pre class="reveal" id="cmd">git clone https://github.com/gerardrecinto/devsecops-release-lab
+cd devsecops-release-lab
+python3 -m venv .venv &amp;&amp; . .venv/bin/activate
+pip install -e ".[dev]"
+python -m pytest -q
+python -m deploytriage tests/fixtures/azure_auth_wrapped.log
+npx gitlab-ci-local --list<button class="copy" id="copy" type="button">Copy</button></pre>
+</div></section>
+</main>
+<footer><div class="wrap">MIT license. Personal project, not a production system, not affiliated with any employer. <a href="https://github.com/gerardrecinto/devsecops-release-lab">Source</a></div></footer>
+<script>
+const TRIAGE={"rules":[["pipeline","This GitLab CI configuration is invalid|jobs:\\S+ config contains unknown keys|'(\\S+)' job needs '(\\S+)' job, but","The pipeline file is wrong, nothing ran.","Run the CI lint on the file; check `needs`, `rules` and component `inputs`."],["pipeline","Job's log exceeded limit|execution took longer than|stuck or timed out|Runner system failure|no runners? (?:online|available)","The runner, not the code.","Check runner tags, capacity and the job timeout."],["source","CONFLICT \\(content\\)|merge conflict|fatal: couldn't find remote ref|pathspec .* did not match","The change set is wrong.","Rebase or fix the ref, then rerun."],["iac","\\bBCP\\d{3}\\b|InvalidTemplate\\b|Error: Invalid reference|Error: Unsupported argument|Error acquiring the state lock","The template or state, not Azure.","Run `az bicep build` or `terraform validate` locally; for a lock, find the running apply."],["azure","AuthorizationFailed|RequestDisallowedByPolicy|QuotaExceeded|SkuNotAvailable|ResourceGroupNotFound|AuthenticationFailed|AADSTS\\d+","Azure refused it: identity, policy or capacity.","Read the error code. AuthorizationFailed: the deploy identity's role at that scope. RequestDisallowedByPolicy: which policy assignment."],["network","Name or service not known|Could not resolve host|no such host|i/o timeout|connection refused|x509: certificate|PrivateEndpoint\\w*|dial tcp .*: connect","The path to the service is broken.","Check DNS (private zone link), NSG and route table on the subnet, and whether the endpoint is approved."],["app-config","CrashLoopBackOff|ImagePullBackOff|ErrImagePull|Readiness probe failed|environment variable .* (?:not set|is required)|Back-off restarting failed container","The platform worked; the app did not start.","`kubectl describe pod`, container logs, and the config or secret it mounts."],["linux","No space left on device|Permission denied|command not found|Segmentation fault|OOMKilled|exit code 137","The host or container environment.","Disk, permissions, missing binary or memory limit on the runner or node."]],"wrapper":["azure","DeploymentFailed|InvalidTemplateDeployment|At least one resource deployment operation failed","Azure rejected the deployment. This line is the wrapper, the cause is in the nested error.","Read the nested `code` field below it."]};
+const SAMPLES={"azure_auth_wrapped": "$ az deployment group create -g rg-lab-prod --parameters bicep/params/prod.bicepparam\nERROR: Deployment failed. Correlation ID: 00000000-0000-0000-0000-000000000000. {\n  \"code\": \"DeploymentFailed\",\n  \"message\": \"At least one resource deployment operation failed. Please list deployment operations for details.\",\n  \"details\": [\n    {\"code\": \"AuthorizationFailed\", \"message\": \"The client does not have authorization to perform action 'Microsoft.Network/virtualNetworks/write' over scope '/subscriptions/.../resourceGroups/rg-lab-prod'.\"}\n  ]\n}\n", "bicep_error": "$ az bicep build --file bicep/main.bicep\n/builds/lab/bicep/modules/vnet.bicep(18,9) : Error BCP037: The property \"nsgID\" is not allowed on objects of type \"SubnetPropertiesFormat\".\nERROR: Job failed: exit code 1\n", "crashloop": "Warning  BackOff  pod/api-7c5d9  Back-off restarting failed container api in pod api-7c5d9\nWarning  Unhealthy  pod/api-7c5d9  Readiness probe failed: HTTP probe failed with statuscode: 503\n", "disk_full": "$ docker build -t app .\nwrite /var/lib/docker/tmp/x: No space left on device\nERROR: Job failed: exit code 1\n", "dns_private_endpoint": "$ curl -fsS https://stlabprod.blob.core.windows.net/health\ncurl: (6) Could not resolve host: stlabprod.blob.core.windows.net\nERROR: Job failed: exit code 6\n", "pipeline_invalid": "Checking pipeline configuration\nThis GitLab CI configuration is invalid: 'deploy-prod' job needs 'bicep-validate' job, but 'bicep-validate' is not in any previous stage\n", "runner_timeout": "Running with gitlab-runner 17.6.0\nCloning repository...\n$ az bicep install --version v0.31.34\nERROR: Job failed: execution took longer than 1h0m0s seconds\n", "tf_lock": "Error: Error acquiring the state lock\nLock Info:\n  ID: 4f6e\n"};
+const LAYERS=["pipeline","source","iac","azure","network","app-config","linux"];
+const WHERE={pipeline:"The pipeline file or runner",source:"Git refs and merge state",iac:"Bicep or Terraform template and state",azure:"Azure identity, policy or capacity",network:"DNS, NSG, routes, private endpoint","app-config":"The workload and its config",linux:"The host or container environment"};
+function triage(log){
+  const rules=TRIAGE.rules.map(r=>[r[0],new RegExp(r[1],"i"),r[2],r[3]]),wr=new RegExp(TRIAGE.wrapper[1],"i");
+  const hits=[],wrappers=[];
+  log.split("\n").forEach((line,i)=>{
+    let m=null;for(const [layer,rx,meaning,next] of rules){if(rx.test(line)){m={line:i+1,layer,evidence:line.trim().slice(0,200),meaning,next};break}}
+    if(m)hits.push(m);else if(wr.test(line))wrappers.push({line:i+1,layer:TRIAGE.wrapper[0],evidence:line.trim().slice(0,200),meaning:TRIAGE.wrapper[2],next:TRIAGE.wrapper[3]});
+  });
+  const use=hits.length?hits:wrappers;
+  if(!use.length)return {layer:"unknown",evidence:"",meaning:"No known pattern.",next:"Read the first error in the log, not the last.",also:[]};
+  const first=use[0];return Object.assign({},first,{also:[...new Set(use.slice(1).map(h=>h.layer))].filter(l=>l!==first.layer).sort()});
+}
+</script>
+<script>
+(function(){
+var st=document.getElementById('stack'),out=document.getElementById('out'),ta=document.getElementById('log'),chips=document.getElementById('chips');
+st.innerHTML=LAYERS.map(function(l){return '<div class="layer" data-l="'+l+'"><b>'+l+'</b><span>'+WHERE[l]+'</span></div>'}).join('');
+function esc(s){return s.replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+function run(){
+  var r=triage(ta.value);
+  st.querySelectorAll('.layer').forEach(function(e){var l=e.dataset.l;e.classList.toggle('hit',l===r.layer);e.classList.toggle('also',r.also.indexOf(l)>-1)});
+  out.innerHTML='<small>layer</small><p><b>'+esc(r.layer)+'</b>'+(r.also.length?' <span class="mut">(also saw '+esc(r.also.join(', '))+')</span>':'')+'</p>'+(r.evidence?'<small>first failure</small><p><code>'+esc(r.evidence)+'</code></p>':'')+'<small>what it means</small><p>'+esc(r.meaning)+'</p><small>check next</small><p>'+esc(r.next)+'</p>';
+}
+Object.keys(SAMPLES).forEach(function(k,i){var b=document.createElement('button');b.type='button';b.className='chip';b.textContent=k.replace(/_/g,' ');b.onclick=function(){ta.value=SAMPLES[k];chips.querySelectorAll('.chip').forEach(function(c){c.classList.remove('on')});b.classList.add('on');run()};chips.appendChild(b);if(i===0){b.click()}});
+ta.addEventListener('input',run);
+// pipeline sketch
+var envs=document.querySelectorAll('.env'),tok=document.getElementById('tok'),appr=document.getElementById('appr'),pos=0,rm=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function place(i){var e=envs[Math.min(i,3)].getBoundingClientRect(),p=document.getElementById('pipe').getBoundingClientRect();tok.style.left=(e.left-p.left+e.width/2-7)+'px';tok.style.top=(e.top-p.top-14)+'px'}
+function paint(){envs.forEach(function(e,i){e.classList.toggle('done',i<pos);e.classList.toggle('wait',(i===pos)&&(i>=2))});appr.style.display=(pos>=2&&pos<4)?'block':'none';if(pos>3)appr.style.display='none'}
+function step(){if(pos<2){pos++;place(pos-1===0?1:pos);paint();if(pos<2)return}paint()}
+function tick(){if(pos<2){pos++;paint();place(Math.min(pos,3))}}
+place(0);paint();
+if(!rm){var t=setInterval(function(){if(pos<2)tick();else clearInterval(t)},1400)}else{pos=2;paint();place(2)}
+appr.addEventListener('click',function(){if(pos<4){pos++;paint();place(Math.min(pos,3));if(pos===4){appr.style.display='none'}}});
+addEventListener('resize',function(){place(Math.min(pos,3))});
+})();
+</script>
+<script>
+(function(){
+var rm=matchMedia('(prefers-reduced-motion: reduce)').matches;
+var p=document.getElementById('prog');
+function sp(){var h=document.documentElement;p.style.transform='scaleX('+Math.min(1,h.scrollTop/(h.scrollHeight-h.clientHeight||1))+')'}
+addEventListener('scroll',sp,{passive:true});sp();
+// story words
+var st=document.getElementById('story'),words=st.textContent.trim().split(/\s+/);
+st.innerHTML=words.map(function(w){return '<span class="w">'+w+'</span> '}).join('');
+var ws=st.querySelectorAll('.w');
+function story(){var r=st.getBoundingClientRect(),vh=innerHeight,pr=Math.min(1,Math.max(0,(vh*.85-r.top)/(vh*.55+r.height*.6)));var n=Math.round(pr*ws.length);ws.forEach(function(e,i){e.classList.toggle('on',i<n)})}
+if(!rm){addEventListener('scroll',story,{passive:true});story()}else ws.forEach(function(e){e.classList.add('on')});
+// reveal
+var els=document.querySelectorAll('.reveal');
+if('IntersectionObserver' in window&&!rm){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.12,rootMargin:'0px 0px -6% 0px'});els.forEach(function(e){io.observe(e)})}else els.forEach(function(e){e.classList.add('in')});
+// count up
+document.querySelectorAll('[data-n]').forEach(function(e){var t=+e.dataset.n;if(rm)return;var done=false;new IntersectionObserver(function(es,o){if(es[0].isIntersecting&&!done){done=true;var s=performance.now();(function f(n){var k=Math.min(1,(n-s)/1200),v=Math.round(t*(1-Math.pow(1-k,3)));e.textContent=v.toLocaleString('en-US');if(k<1)requestAnimationFrame(f)})(s);o.disconnect()}}).observe(e)});
+// copy
+var cb=document.getElementById('copy');cb.addEventListener('click',function(){var t=document.getElementById('cmd').innerText.replace(/Copy$/,'').trim();try{navigator.clipboard.writeText(t).then(function(){cb.textContent='Copied';setTimeout(function(){cb.textContent='Copy'},1600)})}catch(e){var r=document.createRange();r.selectNodeContents(document.getElementById('cmd'));getSelection().removeAllRanges();getSelection().addRange(r);cb.textContent='Select + copy'}});
+})();
+
+</script>
+</body>
+</html>
