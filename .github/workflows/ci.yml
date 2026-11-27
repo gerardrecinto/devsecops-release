@@ -75,8 +75,8 @@ jobs:
       - run: npm install -g gitlab-ci-local@4.77.1
       - name: The pipeline file parses and has the jobs and gates we expect
         run: |
-          gitlab-ci-local --list | tee jobs.txt
+          gitlab-ci-local --list --variable CI_COMMIT_BRANCH=main | tee jobs.txt
           grep -E "deploy-staging +deploy-staging +manual" jobs.txt
           grep -E "deploy-prod +deploy-prod +manual" jobs.txt
       - name: Run the pipeline's jobs in their containers (gitlab-ci-local, not a GitLab server)
-        run: gitlab-ci-local --concurrency 2 bicep-validate terraform-check gitleaks checkov deploy-dev deploy-test
+        run: gitlab-ci-local --concurrency 2 --variable CI_COMMIT_BRANCH=main bicep-validate terraform-check gitleaks checkov deploy-dev deploy-test
